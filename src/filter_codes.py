@@ -2,7 +2,7 @@ permadeath_codes = {'adventure': '65',
                     'exploration': '72',
                     'roguelike': '66'}
 
-diffiiculty_codes = {'easy': '33',
+difficulty_codes = {'easy': '33',
                      'normal': '6',
                      'nighmare': '26',
                      'insane': '36',
