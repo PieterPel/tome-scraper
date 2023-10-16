@@ -1,5 +1,6 @@
 # Added by myself
 .vscode/
+src/test.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
