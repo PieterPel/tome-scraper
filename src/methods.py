@@ -1,6 +1,16 @@
 import requests
 import bs4 as BeautifulSoup
 from collections import OrderedDict
+import pandas as pd
+
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import pairwise_distances_argmin_min
+from matplotlib import pyplot as plt
+from scipy.cluster.hierarchy import dendrogram
+import numpy as np
+
+################################################################################3
+### Extraction
 
 # Method that gets the character urls from a page
 def get_char_urls_from_page(page_url=None, soup=None):
@@ -126,7 +136,7 @@ def get_trees(table):
         print('Something went wrong extracting the skill tree (Probably a non-english character)')
         print(e)
         return OrderedDict()
-    
+
 # Method that puts the relevant data of a character in a dictionary
 def get_character_dictionary(char_url):
     
@@ -260,3 +270,183 @@ def get_character_dictionary(char_url):
         print('Something went wrong with this character')
         print(e)
         return {'class talents': OrderedDict(), 'generic talents': OrderedDict()}
+    
+##########################################################################################
+### Analysis
+
+def plot_dendrogram(model, **kwargs):
+    # Create linkage matrix and then plot the dendrogram
+
+    # create the counts of samples under each node
+    counts = np.zeros(model.children_.shape[0])
+    n_samples = len(model.labels_)
+    for i, merge in enumerate(model.children_):
+        current_count = 0
+        for child_idx in merge:
+            if child_idx < n_samples:
+                current_count += 1  # leaf node
+            else:
+                current_count += counts[child_idx - n_samples]
+        counts[i] = current_count
+
+    linkage_matrix = np.column_stack(
+        [model.children_, model.distances_, counts]
+    ).astype(float)
+
+    # Plot the corresponding dendrogram
+    dendrogram(linkage_matrix, **kwargs)
+    
+    
+# Method that returns an encoded dataframe with regards to the prodigies
+def get_encoded_prodigy_df(char_list):
+    
+    # Get unique prodigies
+    unique_prodigies = set()
+    for char in char_list:
+        prodigies = char['prodigies']
+        for prodigy in prodigies:
+            unique_prodigies.add(prodigy)
+    
+    unique_prodigies = list(unique_prodigies)
+    
+    # Create basic dataframe
+    data = []
+    for char in char_list:
+        dict = {"Prodigies": char['prodigies']}
+        data.append(dict)
+        
+    df = pd.DataFrame(data)
+
+    # Create binary variables for each prodigy
+    for prodigy in unique_prodigies:
+        df[prodigy] = df['Prodigies'].apply(lambda x: int(prodigy in x))
+    
+    # Drop first column
+    df = df.iloc[: , 1:]
+    
+    return df
+
+# Input list of characters, output dendogram, uses plot_dendrogram method from previous block
+def print_dendrogram(encoded_df):
+
+    # setting distance_threshold=0 ensures we compute the full tree.
+    model = AgglomerativeClustering(distance_threshold=0, n_clusters=None)
+
+    model = model.fit(encoded_df.to_numpy())
+    plt.title("Hierarchical Clustering Dendrogram")
+    # plot the top three levels of the dendrogram
+    plot_dendrogram(model, truncate_mode="level", p=3)
+    plt.xlabel("Number of points in node (or index of point if no parenthesis).")
+    plt.show()
+    
+# Method that output the cluster model of the characters with regards to the prodigies
+def get_cluster_model(encoded_df, num_clusters, model = None):
+    
+    if model == None:
+        model = AgglomerativeClustering(n_clusters=num_clusters, compute_distances=True)
+
+    model = model.fit(encoded_df.to_numpy())
+    
+    return model
+
+# Method that returns encoded dataframe of class or generic talents
+def encode_talents_df(char_list, type='class talents'):
+    
+    if not type in ['class talents', 'generic talents']:
+        print('Use \'class talents\' or \'generic talents\' for type') 
+        return None
+    
+    # First get unique trees and talents
+    unique_trees = set()
+    unique_talents = set()
+
+    for char in char_list:
+        
+        # Update unique trees
+        trees = set(char[type].keys())
+        unique_trees = unique_trees | trees # Take union
+        
+        # Update  unique talents
+        talents = list()
+        for tree in list(char[type].values()):
+            talents.extend(tree.keys())
+            
+        unique_talents = unique_talents | set(talents) # Take union
+    
+    # Create initial dataframe
+    column_names = list(unique_trees) + list(unique_talents)
+    start_data = np.zeros((len(char_list), len(column_names)))
+    df = pd.DataFrame(start_data,columns=column_names)
+    
+    # Update dataframe
+    for index, char in enumerate(char_list):
+        for tree_name, tree_dict in list(char[type].items()):
+            
+            df.at[index, tree_name] = 1
+            
+            for talent_name, talent_level in tree_dict.items():
+                df.at[index, talent_name] = talent_level
+    
+    return df
+
+def get_cluster_centers_and_observations_closest(df, num_clusters=2, model=None):
+
+    if model == None:
+        model = AgglomerativeClustering(n_clusters=num_clusters)
+        
+    cluster_labels = model.fit_predict(df)
+
+    # Calculate the cluster centers (means)
+    cluster_centers = [np.mean(df[cluster_labels == i], axis=0) for i in range(num_clusters)]
+
+    # Find the closest data point to each cluster center
+    closest_points = []
+    for cluster_center in cluster_centers:
+        closest_point_idx = pairwise_distances_argmin_min([cluster_center], df)[0][0]
+        closest_points.append(df.iloc[closest_point_idx])
+
+    return cluster_centers, closest_points
+
+# Get dicionary that has all the trees and the corresponding skills, must be doable by looping over every character
+def get_tree_dictionary(char_list, type='class talents'):
+
+    trees_already_seen = set()
+
+    trees_dictionary = OrderedDict()
+
+    for char in char_list:
+        
+        for tree_name, talent_dict in char[type].items():
+        
+            talent_names = list(talent_dict.keys())
+            
+            trees_dictionary[tree_name] = talent_names
+            
+            trees_already_seen.add(tree_name)
+            
+    return trees_dictionary
+
+# Method that prints a character tree of a character
+def print_character_tree(char, tree_dict, type='class talents'):
+    
+    char_trees = char[type].keys()
+    
+    for tree in tree_dict.keys():
+        
+        if tree in char_trees:
+            print(tree)
+            
+            for talent, level in char[type][tree].items():
+                print(f'\t {talent}: {level}')
+                
+# Method that prints the talent trees of a pd.Series
+def print_talent_series(series, tree_dict):
+    
+    for tree, talents_list in tree_dict.items():   
+        
+        if series[tree] != 0:
+            print(tree)
+            
+            for talent in talents_list:
+                print(f'\t {talent}: {series[talent]}')
+                
