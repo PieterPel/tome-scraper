@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 # Class that contains the filter for the vault and has a method to extrac the characters
 @dataclass(frozen=False)
-class charFilter:
+class CharFilter:
     name: str = ''
     minlevel: str = ''
     maxlevel: str = ''
@@ -93,3 +93,12 @@ class charFilter:
                 characters.append(char)
                 
         return characters
+    
+# def Character():
+    
+#     def __init__(self, dictionary):
+#         self.dictionary = dictionary
+    
+#     def print_stats(self):
+#         pass
+        
