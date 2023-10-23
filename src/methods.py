@@ -1,5 +1,5 @@
 import requests
-import bs4 as BeautifulSoup
+from  bs4 import BeautifulSoup
 from collections import OrderedDict
 import pandas as pd
 
@@ -263,7 +263,8 @@ def get_character_dictionary(char_url):
                         'game': game,
                         'version': version,
                         'difficulty': difficulty,
-                        'permadeath': permadeath}
+                        'permadeath': permadeath,
+                        'url': char_url}
         
         return char_dictionary
     except Exception as e:
@@ -326,6 +327,42 @@ def get_encoded_prodigy_df(char_list):
     
     return df
 
+# Method that returns an encoded dataframe with regards to a single feature except the talents
+def get_encoded_feature_df(char_list, feature):
+    
+    # Get unique features
+    unique_features = set()
+    for char in char_list:
+        features = char[feature]
+        
+        # Check if features is a list
+        if not isinstance(features, list):
+            # Wrap it in a list
+            features = [features]
+        
+        # Loop over the features
+        for instance in features:
+            unique_features.add(instance)
+
+    unique_features = list(unique_features)
+    
+    # Create basic dataframe
+    data = []
+    for char in char_list:
+        dict = {"features": char[feature]}
+        data.append(dict)
+        
+    df = pd.DataFrame(data)
+
+    # Create binary variables for each prodigy
+    for feature in unique_features:
+        df[feature] = df['features'].apply(lambda x: int(feature in x))
+    
+    # Drop first column
+    df = df.iloc[: , 1:]
+    
+    return df
+
 # Input list of characters, output dendogram, uses plot_dendrogram method from previous block
 def print_dendrogram(encoded_df):
 
@@ -350,7 +387,7 @@ def get_cluster_model(encoded_df, num_clusters, model = None):
     return model
 
 # Method that returns encoded dataframe of class or generic talents
-def encode_talents_df(char_list, type='class talents'):
+def get_encoded_talents_df(char_list, type='class talents'):
     
     if not type in ['class talents', 'generic talents']:
         print('Use \'class talents\' or \'generic talents\' for type') 
@@ -389,11 +426,11 @@ def encode_talents_df(char_list, type='class talents'):
     
     return df
 
-def get_cluster_centers_and_observations_closest(df, num_clusters=2, model=None):
+def get_cluster_centers_and_observations_closest(df, model=None, num_clusters=2):
 
     if model == None:
         model = AgglomerativeClustering(n_clusters=num_clusters)
-        
+
     cluster_labels = model.fit_predict(df)
 
     # Calculate the cluster centers (means)
@@ -417,12 +454,11 @@ def get_tree_dictionary(char_list, type='class talents'):
     for char in char_list:
         
         for tree_name, talent_dict in char[type].items():
-        
-            talent_names = list(talent_dict.keys())
             
-            trees_dictionary[tree_name] = talent_names
-            
-            trees_already_seen.add(tree_name)
+            if not tree_name in trees_already_seen:
+                talent_names = list(talent_dict.keys())
+                trees_dictionary[tree_name] = talent_names
+                trees_already_seen.add(tree_name)
             
     return trees_dictionary
 

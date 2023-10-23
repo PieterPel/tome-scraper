@@ -1,6 +1,7 @@
 # Added by myself
 .vscode/
 src/test.pkl
+src/necromancer.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
