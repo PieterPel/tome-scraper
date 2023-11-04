@@ -2,6 +2,8 @@
 .vscode/
 src/test.pkl
 src/necromancer.pkl
+src/sunpaladin.pkl
+src/pickles/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

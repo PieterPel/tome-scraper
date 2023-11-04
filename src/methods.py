@@ -2,6 +2,7 @@ import requests
 from  bs4 import BeautifulSoup
 from collections import OrderedDict
 import pandas as pd
+import copy
 
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import pairwise_distances_argmin_min
@@ -485,4 +486,127 @@ def print_talent_series(series, tree_dict):
             
             for talent in talents_list:
                 print(f'\t {talent}: {series[talent]}')
-                
+
+# Method that can print a closest observation
+def print_closest_observation(charList, char_series):
+    
+    ## Race
+    races_in_list = charList.race_dict.keys()
+    races_in_series = [x for x in races_in_list if x in char_series.index]
+    
+    for race in races_in_series:
+        try:
+            if char_series[race] != 0:
+                print(f"Race: {race}")
+        except Exception as e:
+            print(e)
+            
+    
+    ## Prodigies
+    prodigies_in_list = charList.prodigy_dict.keys()
+    prodigies_in_series = [x for x in prodigies_in_list if x in char_series.index]
+
+    prodigies = []
+    for prod in prodigies_in_series:
+        if char_series[prod] != 0:
+            prodigies.append(prod)
+    
+    print("Prodigies:")
+    for prodigy in prodigies:
+        print(f"\t{prodigy}")
+    
+    ## Class talents
+    print("Class talents:")
+    for tree, talents_list in charList.class_talents_dict.items():
+        if char_series[tree] != 0:
+            print(f"\t{tree}")
+            for talent in talents_list:
+                print(f"\t \t {talent:<30}: \t {char_series[talent]}")
+    
+    
+    ## Generic talents # Need to remove redundant class trees
+    print("Generic talents:")
+    for tree, talents_list in charList.generic_talents_dict.items():
+        if char_series[tree] != 0:
+            print(f"\t{tree}")
+            for talent in talents_list:
+                print(f"\t \t {talent:<30}: \t {char_series[talent]}")
+
+# Method that converts a mean to  a build          
+def get_converted_mean(charList, series):
+    
+    # Make a deep copy of the series
+    char_series = copy.deepcopy(series)
+    
+    ## Convert Race
+    races_in_list = charList.race_dict.keys()
+    races_in_series = [x for x in races_in_list if x in char_series.index]
+    races_sorted = sorted(races_in_series, key=lambda race: char_series[race], reverse=True)
+    races_sorted.extend(['Whitehooves', 'Yeti'])
+    
+    # Set tree value to 0 for all but the most important race
+    for race in races_in_series:
+        if race == races_sorted[0]:
+            char_series[race] = 1
+        else:
+            char_series[race] = 0
+    
+    # Set race talents to zero for all but the most important race     
+    for index in char_series.index:
+        if '/' in index and any(race in index for race in races_sorted[1:]):
+            char_series[index] = 0
+            for talent in charList.generic_talents_dict[index]:
+                char_series[talent] = 0
+    
+    ## Convert Prodigies
+    
+    prodigies_in_list = charList.prodigy_dict.keys()
+    prodigies_in_series = [x for x in prodigies_in_list if x in char_series.index]
+    prodigies_sorted = sorted(prodigies_in_series, key=lambda prod: char_series[prod], reverse=True)
+    
+    # Loop over the prodigies in the series
+    for prod in prodigies_in_series:
+        if prod in prodigies_sorted[:2]:
+            char_series[prod] = 1
+        else:
+            char_series[prod] = 0
+    
+    ## Convert class and generic talents
+    type_dict = {'class talents': charList.class_talents_dict.values(),
+            'generic talents': charList.generic_talents_dict.values()}
+    
+    for type in ['class talents', 'generic talents']:
+    
+        type_talents_total = list()
+        for talents in type_dict[type]:
+            type_talents_total.extend(talents)
+        
+        type_talents = [x for x in type_talents_total if x in char_series.index]
+        
+        # Back-up series
+        rounded_down = 0
+        rounded_down_dict = {}
+        
+        # Round talents down
+        for talent in type_talents:
+            
+            after_decimal = char_series[talent] % 1
+            char_series[talent] = np.floor(char_series[talent])
+            
+            rounded_down += after_decimal
+            rounded_down_dict[talent] = after_decimal
+        
+        # Sort class talents by how much has been rounded
+        type_talents_ordered = sorted(rounded_down_dict, key=rounded_down_dict.get, reverse=True)
+        
+        # Redistribute
+        for talent in type_talents_ordered:
+            
+            char_series[talent] += 1
+            
+            rounded_down -= rounded_down_dict[talent]
+            
+            if rounded_down < 1:
+                break
+        
+    return char_series
