@@ -518,6 +518,10 @@ def print_closest_observation(charList, char_series):
     ## Class talents
     print("Class talents:")
     for tree, talents_list in charList.class_talents_dict.items():
+        
+        if tree not in char_series.index:
+            continue
+        
         if char_series[tree] != 0:
             print(f"\t{tree}")
             for talent in talents_list:
@@ -527,6 +531,10 @@ def print_closest_observation(charList, char_series):
     ## Generic talents # Need to remove redundant class trees
     print("Generic talents:")
     for tree, talents_list in charList.generic_talents_dict.items():
+        
+        if tree not in char_series.index:
+            continue
+        
         if char_series[tree] != 0:
             print(f"\t{tree}")
             for talent in talents_list:
