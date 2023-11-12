@@ -1,2 +1,4 @@
 # tome-scraper
-Repository that contains a web scraper for the Tales of Maj'Eyal character vault
+Repository that contains:
+  (1) A web scraper (and filter) for the Tales of Maj'Eyal character vault
+  (2) A build analyzer
